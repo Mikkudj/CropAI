@@ -1,0 +1,481 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CropAI | Model Performance</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: "Segoe UI", Arial, sans-serif;
+            background: #f3f7f2;
+            color: #203329;
+            padding: 24px;
+        }
+
+        .container { max-width: 1200px; margin: auto; }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 26px;
+        }
+
+        .brand { color: #16834a; font-size: 28px; font-weight: 800; }
+        header p { color: #718075; margin-top: 5px; }
+        a { color: #16834a; text-decoration: none; font-weight: 600; }
+
+        .hero {
+            background: linear-gradient(120deg, #176b40, #23965a);
+            color: white;
+            padding: 30px;
+            border-radius: 18px;
+            margin-bottom: 22px;
+        }
+
+        .hero h1 { font-size: 30px; margin-bottom: 10px; }
+        .hero p { line-height: 1.7; }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 18px;
+            margin-bottom: 24px;
+        }
+
+        .stat, .panel {
+            background: white;
+            padding: 22px;
+            border-radius: 15px;
+            box-shadow: 0 4px 18px #183d2010;
+        }
+
+        .stat p { color: #718075; font-size: 14px; margin-bottom: 10px; }
+        .stat h2 { color: #16834a; font-size: 29px; }
+        .panel { margin-bottom: 22px; }
+        .panel h2 { font-size: 20px; margin-bottom: 8px; }
+
+        .description {
+            color: #758078;
+            font-size: 14px;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+
+        .chart-container { height: 390px; position: relative; }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin: 18px 0;
+        }
+
+        input, select {
+            padding: 12px;
+            border: 1px solid #d5dfd6;
+            border-radius: 8px;
+            background: white;
+            font-size: 14px;
+            color: #203329;
+        }
+
+        input { flex: 1; min-width: 200px; }
+        select { min-width: 170px; }
+
+        .table-wrapper { overflow-x: auto; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 700px;
+        }
+
+        th, td {
+            padding: 13px 12px;
+            text-align: left;
+            border-bottom: 1px solid #edf0ed;
+            font-size: 14px;
+        }
+
+        th { background: #f5f8f5; color: #526359; }
+        .assessment {
+            padding: 5px 9px;
+            border-radius: 7px;
+            background: #edf6ee;
+            color: #267647;
+            font-size: 12px;
+        }
+
+        .note {
+            color: #69766d;
+            font-size: 13px;
+            line-height: 1.7;
+            margin-top: 16px;
+        }
+
+        .error {
+            color: #b42318;
+            background: #fff0ef;
+            padding: 16px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .table-info { color: #718075; font-size: 13px; margin-bottom: 12px; }
+
+        footer {
+            text-align: center;
+            padding: 20px;
+            color: #849087;
+            font-size: 13px;
+        }
+
+        @media (max-width: 700px) {
+            body { padding: 14px; }
+            .stats { grid-template-columns: 1fr; }
+            .hero h1 { font-size: 24px; }
+            .chart-container { height: 420px; }
+        }
+    </style>
+</head>
+
+<body>
+<div class="container">
+
+    <header>
+        <div>
+            <div class="brand">🌱 CropAI</div>
+            <p>Machine Learning Performance Dashboard</p>
+        </div>
+        <a href="index.html">← Back to Dashboard</a>
+    </header>
+
+    <section class="hero">
+        <h1>Model Performance Analysis</h1>
+        <p>
+            Explore crop-wise prediction errors, compare evaluation metrics,
+            and identify crops that may need further model improvement.
+        </p>
+    </section>
+
+    <div id="errorMessage" class="error" hidden></div>
+
+    <section class="stats">
+        <div class="stat">
+            <p>Crops Evaluated</p>
+            <h2 id="totalCrops">Loading...</h2>
+        </div>
+        <div class="stat">
+            <p>Total Test Samples</p>
+            <h2 id="totalSamples">Loading...</h2>
+        </div>
+        <div class="stat">
+            <p>Average Crop-wise MAE</p>
+            <h2 id="averageMae">Loading...</h2>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2>🏆 Lowest Prediction Errors</h2>
+        <p class="description">
+            Ten crops with the lowest Mean Absolute Error (MAE).
+            Hover over a bar to inspect sample counts and other metrics.
+        </p>
+        <div class="chart-container">
+            <canvas id="bestChart"></canvas>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2>⚠️ Highest Prediction Errors</h2>
+        <p class="description">
+            Ten crops with the highest MAE in the evaluation report.
+        </p>
+        <div class="chart-container">
+            <canvas id="worstChart"></canvas>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2>📊 Crop Evaluation Results</h2>
+        <p class="description">
+            Search for a crop or change the sorting metric to compare results.
+        </p>
+
+        <div class="controls">
+            <input
+                id="cropSearch"
+                type="search"
+                placeholder="Search crop name..."
+                aria-label="Search crop name"
+            >
+
+            <select id="sortMetric" aria-label="Sort crop results">
+                <option value="mae">Sort by MAE (lowest first)</option>
+                <option value="rmse">Sort by RMSE (lowest first)</option>
+                <option value="r2">Sort by R² (highest first)</option>
+                <option value="samples">Sort by samples (highest first)</option>
+            </select>
+        </div>
+
+        <p id="tableInfo" class="table-info">Loading results...</p>
+
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Crop</th>
+                        <th>Samples</th>
+                        <th>MAE</th>
+                        <th>RMSE</th>
+                        <th>R²</th>
+                        <th>Assessment</th>
+                    </tr>
+                </thead>
+                <tbody id="resultsTable">
+                    <tr><td colspan="6">Loading evaluation results...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p class="note">
+            MAE and RMSE depend on the yield scale and units.
+            Higher R² generally indicates better fit, while negative R²
+            indicates performance worse than a test-set mean baseline.
+            Results based on few samples may be unstable. These metrics
+            do not guarantee future real-world accuracy.
+        </p>
+    </section>
+
+    <footer>CropAI · Model Evaluation Dashboard</footer>
+</div>
+
+<script>
+let bestChartInstance = null;
+let worstChartInstance = null;
+let cropData = [];
+
+async function loadPerformance() {
+    const errorBox = document.getElementById("errorMessage");
+
+    try {
+        const response = await fetch(
+            "http://127.0.0.1:8000/model-performance"
+        );
+
+        if (!response.ok) {
+            throw new Error("API returned HTTP " + response.status);
+        }
+
+        const report = await response.json();
+
+        if (!Array.isArray(report.crops) || report.crops.length === 0) {
+            throw new Error("No crop evaluation data was returned.");
+        }
+
+        cropData = report.crops.map(row => ({
+            crop: row.Crop,
+            samples: Number(row.Test_Samples),
+            mae: Number(row.MAE),
+            rmse: Number(row.RMSE),
+            r2: Number(row.R2),
+            assessment: row.Assessment || "Not classified"
+        })).filter(row =>
+            row.crop &&
+            Number.isFinite(row.samples) &&
+            Number.isFinite(row.mae) &&
+            Number.isFinite(row.rmse) &&
+            Number.isFinite(row.r2)
+        );
+
+        if (cropData.length === 0) {
+            throw new Error("No valid metric records were found.");
+        }
+
+        document.getElementById("totalCrops").textContent =
+            cropData.length;
+
+        const totalSamples = cropData.reduce(
+            (sum, row) => sum + row.samples, 0
+        );
+
+        document.getElementById("totalSamples").textContent =
+            totalSamples.toLocaleString();
+
+        const averageMae = cropData.reduce(
+            (sum, row) => sum + row.mae, 0
+        ) / cropData.length;
+
+        document.getElementById("averageMae").textContent =
+            averageMae.toFixed(3);
+
+        const sorted = [...cropData].sort((a, b) => a.mae - b.mae);
+
+        bestChartInstance = drawChart(
+            "bestChart",
+            sorted.slice(0, 10),
+            bestChartInstance
+        );
+
+        worstChartInstance = drawChart(
+            "worstChart",
+            [...sorted].reverse().slice(0, 10),
+            worstChartInstance
+        );
+
+        document.getElementById("cropSearch")
+            .addEventListener("input", renderTable);
+
+        document.getElementById("sortMetric")
+            .addEventListener("change", renderTable);
+
+        renderTable();
+        errorBox.hidden = true;
+
+    } catch (error) {
+        console.error("Performance dashboard error:", error);
+
+        errorBox.hidden = false;
+        errorBox.textContent =
+            "Unable to load performance data. Check that the backend is running " +
+            "and http://127.0.0.1:8000/model-performance returns JSON. " +
+            "Details: " + error.message;
+
+        document.getElementById("totalCrops").textContent = "—";
+        document.getElementById("totalSamples").textContent = "—";
+        document.getElementById("averageMae").textContent = "—";
+
+        document.getElementById("resultsTable").innerHTML =
+            '<tr><td colspan="6">Unable to load evaluation results.</td></tr>';
+
+        document.getElementById("tableInfo").textContent =
+            "Evaluation data unavailable.";
+    }
+}
+
+function drawChart(canvasId, rows, previousChart) {
+    if (previousChart) previousChart.destroy();
+
+    return new Chart(document.getElementById(canvasId), {
+        type: "bar",
+        data: {
+            labels: rows.map(row => row.crop),
+            datasets: [{
+                label: "MAE",
+                data: rows.map(row => row.mae),
+                borderWidth: 1,
+                borderRadius: 5
+            }]
+        },
+        options: {
+            indexAxis: "y",
+            maintainAspectRatio: false,
+            responsive: true,
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: "Mean Absolute Error (MAE)"
+                    }
+                },
+                y: {
+                    ticks: { autoSkip: false }
+                }
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        afterLabel: context => {
+                            const row = rows[context.dataIndex];
+                            return [
+                                "Test samples: " + row.samples,
+                                "RMSE: " + row.rmse,
+                                "R²: " + row.r2
+                            ];
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function renderTable() {
+    const query = document.getElementById("cropSearch")
+        .value.trim().toLowerCase();
+
+    const metric = document.getElementById("sortMetric").value;
+
+    const filtered = cropData
+        .filter(row => row.crop.toLowerCase().includes(query))
+        .sort((a, b) => {
+            if (metric === "samples") {
+                return b.samples - a.samples;
+            }
+
+            if (metric === "r2") {
+                return b.r2 - a.r2;
+            }
+
+            return a[metric] - b[metric];
+        });
+
+    const tableBody = document.getElementById("resultsTable");
+    tableBody.innerHTML = "";
+
+    document.getElementById("tableInfo").textContent =
+        "Showing " + filtered.length + " of " + cropData.length + " crops";
+
+    if (filtered.length === 0) {
+        tableBody.innerHTML =
+            '<tr><td colspan="6">No matching crops found.</td></tr>';
+        return;
+    }
+
+    filtered.forEach(row => {
+        const tr = document.createElement("tr");
+
+        [
+            row.crop,
+            row.samples,
+            row.mae.toFixed(4),
+            row.rmse.toFixed(4),
+            row.r2.toFixed(4)
+        ].forEach(value => {
+            const td = document.createElement("td");
+            td.textContent = value;
+            tr.appendChild(td);
+        });
+
+        const assessmentCell = document.createElement("td");
+        const badge = document.createElement("span");
+        badge.className = "assessment";
+        badge.textContent = row.assessment;
+        assessmentCell.appendChild(badge);
+        tr.appendChild(assessmentCell);
+
+        tableBody.appendChild(tr);
+    });
+}
+
+if (typeof Chart !== "undefined") {
+    loadPerformance();
+} else {
+    const errorBox = document.getElementById("errorMessage");
+    errorBox.hidden = false;
+    errorBox.textContent =
+        "Chart.js could not load. Check your internet connection and refresh.";
+}
+</script>
+</body>
+</html>

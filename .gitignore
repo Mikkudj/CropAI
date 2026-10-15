@@ -1,0 +1,47 @@
+# Python virtual environment
+venv/
+.venv/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# IDE settings
+.vscode/
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.log
+*.tmp
+# Local installation files
+*.whl
+
+# Temporary model investigations
+check_coconut_data.py
+check_yield_consistency.py
+coconut_year_analysis.py
+compare_time_models.py
+diagnose_model.py
+evaluate_by_crop.py
+evaluate_by_year_period.py
+evaluate_model.py
+inspect_coconut.py
+investigate_coconut.py
+time_based_evaluation.py
+# Python cache
+__pycache__/
+*.pyc
+
+# Large trained model
+models/*.pkl
