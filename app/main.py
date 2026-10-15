@@ -2,7 +2,6 @@ import csv
 from pathlib import Path
 from fastapi import HTTPException
 from fastapi import FastAPI, Depends, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 import joblib
@@ -16,23 +15,16 @@ os.getenv
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
 SUPABASE_PUBLISHABLE_KEY = os.getenv("SUPABASE_PUBLISHABLE_KEY", "")
 
-
+from fastapi.middleware.cors import CORSMiddleware
 app = FastAPI(title="CropAI API")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://rococo-monstera-5b4848.netlify.app"
+        "https://rococo-monstera-5b4848.netlify.app",
+        "http://localhost:5500",
+        "http://127.0.0.1:5500",
     ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://127.0.0.1:5500", "http://localhost:5500"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
