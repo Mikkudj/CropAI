@@ -12,11 +12,23 @@ import os
 
 # Load configuration from the project-root .env file.
 load_dotenv()
-
+os.getenv
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
 SUPABASE_PUBLISHABLE_KEY = os.getenv("SUPABASE_PUBLISHABLE_KEY", "")
 
+
 app = FastAPI(title="CropAI API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://rococo-monstera-5b4848.netlify.app"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 app.add_middleware(
     CORSMiddleware,
