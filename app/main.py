@@ -1,21 +1,22 @@
 import csv
 from pathlib import Path
+from fastapi import HTTPException
 from fastapi import FastAPI, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 import joblib
 import pandas as pd
 import requests
 import os
-import time
-from threading import Lock
 
 # Load configuration from the project-root .env file.
 load_dotenv()
+os.getenv
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
 SUPABASE_PUBLISHABLE_KEY = os.getenv("SUPABASE_PUBLISHABLE_KEY", "")
 
-from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI(title="CropAI API")
 
 app.add_middleware(
@@ -30,51 +31,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# In-memory cache to reduce repeated Open-Meteo calls. Cache survives requests
-# handled by this process, but resets when the service restarts.
-_weather_cache = {}
-_weather_cache_lock = Lock()
-_WEATHER_CACHE_SECONDS = 1800  # 30 minutes
-_GEOCODING_CACHE_SECONDS = 86400  # 24 hours
-
-
-def _get_cached_json(url: str, params: dict, cache_key: tuple, ttl: int):
-    """Fetch JSON with caching; use stale cached data if provider is rate-limiting."""
-    now = time.time()
-    with _weather_cache_lock:
-        cached = _weather_cache.get(cache_key)
-
-    if cached and now - cached["time"] < ttl:
-        return cached["data"]
-
-    try:
-        response = requests.get(url, params=params, timeout=15)
-        response.raise_for_status()
-        data = response.json()
-        with _weather_cache_lock:
-            _weather_cache[cache_key] = {"time": now, "data": data}
-        return data
-    except requests.exceptions.HTTPError as exc:
-        status = exc.response.status_code if exc.response is not None else None
-        if status == 429 and cached:
-            # Serve stale data rather than fail the whole weather panel.
-            return cached["data"]
-        if status == 429:
-            raise HTTPException(
-                status_code=503,
-                detail="Weather provider is temporarily rate-limited. Please try again later."
-            ) from exc
-        raise HTTPException(
-            status_code=502,
-            detail="Weather provider returned an error. Please try again later."
-        ) from exc
-    except requests.exceptions.RequestException as exc:
-        if cached:
-            return cached["data"]
-        raise HTTPException(
-            status_code=503,
-            detail="Weather provider is temporarily unavailable. Please try again later."
-        ) from exc
 
 # ======================================
 # LOAD MODEL
@@ -322,20 +278,21 @@ def find_indian_location(state: str):
         state.strip()
     )
 
-    params = {
-        "name": search_name,
-        "count": 10,
-        "language": "en",
-        "format": "json",
-        "countryCode": "IN"
-    }
-    geocoding_data = _get_cached_json(
+    response = requests.get(
         "https://geocoding-api.open-meteo.com/v1/search",
-        params,
-        ("geocoding", search_name.strip().lower()),
-        _GEOCODING_CACHE_SECONDS
+        params={
+            "name": search_name,
+            "count": 10,
+            "language": "en",
+            "format": "json",
+            "countryCode": "IN"
+        },
+        timeout=15
     )
-    results = geocoding_data.get("results", [])
+
+    response.raise_for_status()
+
+    results = response.json().get("results", [])
 
     return next(
         (
@@ -363,22 +320,22 @@ def get_weather(state: str, crop: str = "Rice"):
     latitude = location["latitude"]
     longitude = location["longitude"]
 
-    current_params = {
-        "latitude": latitude,
-        "longitude": longitude,
-        "current": (
-            "temperature_2m,relative_humidity_2m,"
-            "precipitation,wind_speed_10m"
-        ),
-        "timezone": "auto"
-    }
-    weather_data = _get_cached_json(
+    response = requests.get(
         "https://api.open-meteo.com/v1/forecast",
-        current_params,
-        ("current", round(latitude, 3), round(longitude, 3)),
-        _WEATHER_CACHE_SECONDS
+        params={
+            "latitude": latitude,
+            "longitude": longitude,
+            "current": (
+                "temperature_2m,relative_humidity_2m,"
+                "precipitation,wind_speed_10m"
+            ),
+            "timezone": "auto"
+        },
+        timeout=15
     )
-    current = weather_data.get("current", {})
+
+    response.raise_for_status()
+    current = response.json().get("current", {})
 
     temperature = current.get("temperature_2m")
     humidity = current.get("relative_humidity_2m")
@@ -512,26 +469,24 @@ def get_forecast(state: str):
             "error": f"Location not found in India: {state}"
         }
 
-    latitude = location["latitude"]
-    longitude = location["longitude"]
-    forecast_params = {
-        "latitude": latitude,
-        "longitude": longitude,
-        "daily": (
-            "weather_code,temperature_2m_max,"
-            "temperature_2m_min,precipitation_probability_max,"
-            "precipitation_sum"
-        ),
-        "forecast_days": 7,
-        "timezone": "auto"
-    }
-    forecast_data = _get_cached_json(
+    response = requests.get(
         "https://api.open-meteo.com/v1/forecast",
-        forecast_params,
-        ("forecast", round(latitude, 3), round(longitude, 3)),
-        _WEATHER_CACHE_SECONDS
+        params={
+            "latitude": location["latitude"],
+            "longitude": location["longitude"],
+            "daily": (
+                "weather_code,temperature_2m_max,"
+                "temperature_2m_min,precipitation_probability_max,"
+                "precipitation_sum"
+            ),
+            "forecast_days": 7,
+            "timezone": "auto"
+        },
+        timeout=15
     )
-    daily = forecast_data.get("daily", {})
+
+    response.raise_for_status()
+    daily = response.json().get("daily", {})
 
     forecasts = []
 
