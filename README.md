@@ -1,30 +1,29 @@
 # 🌱 CropAI — Smart Farming Assistant
 
-An AI-powered crop yield prediction platform designed to help farmers estimate crop yields using historical agricultural data and access weather information and farming recommendations.
+CropAI is an AI-powered web application that predicts crop yield using historical agricultural data and provides weather information and general farming recommendations.
 
-## ✨ Features
+## Features
 
-- **Crop Yield Prediction:** Predict crop yield using a trained machine learning model.
-- **Weather Information:** View current weather conditions for the selected state.
-- **Weather Forecast:** Access a 7-day weather forecast.
-- **Farming Recommendations:** Receive general recommendations based on predicted yield and farm inputs.
-- **User Authentication:** Sign up and sign in using Supabase Authentication.
-- **Prediction History:** Save and view previous predictions.
-- **User Data Protection:** Row Level Security (RLS) policies restrict prediction history access to the relevant user.
-- **Model Performance Dashboard:** Compare prediction errors across 62 crops.
+- Crop yield prediction using a trained machine learning model
+- Current weather information
+- 7-day weather forecast
+- General farming recommendations
+- Supabase authentication
+- User-specific prediction history
+- Model performance dashboard covering 62 crops
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 - **Frontend:** HTML, CSS, JavaScript
-- **Backend:** Python, FastAPI
-- **Machine Learning:** Pandas, NumPy, Scikit-learn, Random Forest Regressor
-- **Database & Authentication:** Supabase
-- **Data Visualization:** Chart.js
-- **Server:** Uvicorn
+- **Backend:** Python, FastAPI, Uvicorn
+- **Machine Learning:** Scikit-learn, Random Forest Regressor
+- **Data Processing:** Pandas, NumPy
+- **Database and Authentication:** Supabase
+- **Charts:** Chart.js
 
-## 🤖 Machine Learning
+## Machine Learning
 
-The model is trained on historical agricultural data containing:
+The model uses these input features:
 
 - Year
 - State
@@ -35,42 +34,62 @@ The model is trained on historical agricultural data containing:
 - Fertilizer usage
 - Pesticide usage
 
-The target variable is crop yield. A preprocessing pipeline handles categorical features, and a Random Forest Regressor generates predictions.
+The dataset contains 17,400 training records and 4,350 test records, covering 62 crops.
 
-The dataset contains 17,400 training records and 4,350 test records, covering 62 crops across 31 states or territories.
-
-## 📊 Model Evaluation
-
-The initial random test split produced the following results:
+### Initial Evaluation Results
 
 | Metric | Result |
 |---|---:|
-| Mean Absolute Error (MAE) | 6.69 |
-| Root Mean Squared Error (RMSE) | 81.68 |
+| MAE | 6.69 |
+| RMSE | 81.68 |
 | R² Score | 0.9925 |
 
-These are preliminary evaluation results. Performance varies by crop, and unusually large errors occur for some crops. The model should be evaluated further before being used for real agricultural decisions.
+These results are from an initial random test split. Performance varies by crop, and some crops have large prediction errors. Further validation is needed before real-world agricultural use.
 
-## 🚀 Getting Started
+## Project Structure
+
+```text
+CropAI/
+├── app/
+│   ├── main.py
+│   └── predict.py
+├── data/
+│   ├── train-00000-of-00001.parquet
+│   └── test-00000-of-00001.parquet
+├── frontend/
+│   ├── index.html
+│   ├── performance.html
+│   └── style.css
+├── models/
+│   └── crop_yield_model.pkl
+├── notebook/
+│   ├── 01_data_exploration.py
+│   └── 02_model.py
+├── .env.example
+├── .gitignore
+├── requirements.txt
+└── README.md
+```
+
+## Setup Instructions
 
 ### Prerequisites
 
 - Python 3.11
 - Git
+- Git LFS
 - Visual Studio Code
 - A Supabase project
-- The project dataset and trained model files
 
 ### 1. Clone the repository
 
-```bash
-git clone YOUR_GITHUB_REPOSITORY_URL
-cd crop-ai-project
+```powershell
+git clone https://github.com/Mikkudj/CropAI.git
+cd CropAI
+git lfs pull
 ```
 
-### 2. Create and activate a virtual environment
-
-On Windows PowerShell:
+### 2. Create a virtual environment
 
 ```powershell
 python -m venv venv
@@ -79,73 +98,53 @@ python -m venv venv
 
 ### 3. Install dependencies
 
-Install the required Python packages using a `requirements.txt` file.
-
 ```powershell
 pip install -r requirements.txt
 ```
 
 ### 4. Configure Supabase
 
-Configure the Supabase project URL and public client key in the frontend using your project's existing configuration.
+Copy `.env.example` to `.env` in the project root.
 
-Never commit Supabase secret or service-role keys, access tokens, or passwords to GitHub.
+Add your own Supabase project URL and publishable key:
+
+```env
+SUPABASE_URL=your_supabase_project_url
+SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
+```
+
+Configure the required Supabase database tables and Row Level Security policies.
+
+**Security:** Never commit `.env`, secret keys, service-role keys, or access tokens to GitHub.
 
 ### 5. Start the backend
+
+From the project root:
 
 ```powershell
 python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
+The API documentation will be available at:
+
+http://127.0.0.1:8000/docs
+
 ### 6. Open the frontend
 
-Use the VS Code Live Server extension to open:
+Open `frontend/index.html` using the VS Code Live Server extension.
 
-```text
-frontend/index.html
-```
+## Future Improvements
 
-The backend API documentation is available at:
-
-```text
-http://127.0.0.1:8000/docs
-```
-
-## 📁 Project Structure
-
-```text
-crop-ai-project/
-├── app/
-│   └── main.py
-├── data/
-│   ├── train-00000-of-00001.parquet
-│   └── test-00000-of-00001.parquet
-├── frontend/
-│   ├── index.html
-│   ├── style.css
-│   └── performance.html
-├── models/
-│   └── crop_yield_model.pkl
-├── notebook/
-│   └── 02_model.py
-├── venv/
-├── crop_quality_report.csv
-└── README.md
-```
-
-## 🔮 Future Improvements
-
-- Improve prediction accuracy for crops with large errors.
-- Validate model performance on future years and unseen regions.
+- Improve accuracy for crops with large prediction errors.
+- Evaluate performance on unseen years and regions.
 - Improve input validation and error handling.
-- Deploy the frontend and backend for public access.
-- Add more reliable region-specific soil and agricultural data.
-- Improve recommendations using verified agricultural guidance.
+- Deploy the frontend and backend.
+- Enhance recommendations with verified agricultural guidance.
 
-## ⚠️ Disclaimer
+## Disclaimer
 
-CropAI provides estimates based on historical data. Predictions and recommendations are not a substitute for professional agricultural advice.
+CropAI provides estimates based on historical data. Predictions and recommendations should not replace professional agricultural advice.
 
-## 👨‍💻 Project Purpose
+## Project Purpose
 
-This project demonstrates the application of machine learning, API development, database integration, authentication, and data visualization to an agricultural use case.
+This project demonstrates machine learning, API development, authentication, database integration, and data visualization applied to agriculture.
