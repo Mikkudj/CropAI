@@ -9,7 +9,8 @@ import joblib
 import pandas as pd
 import requests
 import os
-
+import time
+from threading import Lock
 # Load configuration from the project-root .env file.
 load_dotenv()
 os.getenv
@@ -30,6 +31,63 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Weather and geocoding cache
+_api_cache = {}
+_api_cache_lock = Lock()
+
+WEATHER_CACHE_SECONDS = 1800  # 30 minutes
+GEOCODING_CACHE_SECONDS = 86400  # 24 hours
+
+
+def get_cached_json(url, params, cache_key, ttl):
+    now = time.time()
+
+    with _api_cache_lock:
+        cached = _api_cache.get(cache_key)
+
+    # Return cached data if it is still fresh
+    if cached and now - cached["time"] < ttl:
+        return cached["data"]
+
+    try:
+        response = requests.get(url, params=params, timeout=15)
+        response.raise_for_status()
+        data = response.json()
+
+        with _api_cache_lock:
+            _api_cache[cache_key] = {
+                "time": now,
+                "data": data
+            }
+
+        return data
+
+    except requests.exceptions.HTTPError as exc:
+        status = exc.response.status_code if exc.response is not None else None
+
+        if status == 429 and cached:
+            return cached["data"]
+
+        if status == 429:
+            raise HTTPException(
+                status_code=503,
+                detail="Weather service is temporarily rate-limited. Please try again later."
+            ) from exc
+
+        raise HTTPException(
+            status_code=502,
+            detail="Weather service returned an error."
+        ) from exc
+
+    except requests.exceptions.RequestException as exc:
+        if cached:
+            return cached["data"]
+
+        raise HTTPException(
+            status_code=503,
+            detail="Weather service is temporarily unavailable."
+        ) from exc
 
 
 # ======================================
@@ -278,21 +336,20 @@ def find_indian_location(state: str):
         state.strip()
     )
 
-    response = requests.get(
+    geocoding_data = get_cached_json(
         "https://geocoding-api.open-meteo.com/v1/search",
-        params={
+        {
             "name": search_name,
             "count": 10,
             "language": "en",
             "format": "json",
             "countryCode": "IN"
         },
-        timeout=15
+        ("geocoding", search_name.strip().lower()),
+        GEOCODING_CACHE_SECONDS
     )
 
-    response.raise_for_status()
-
-    results = response.json().get("results", [])
+    results = geocoding_data.get("results", [])
 
     return next(
         (
@@ -320,9 +377,10 @@ def get_weather(state: str, crop: str = "Rice"):
     latitude = location["latitude"]
     longitude = location["longitude"]
 
-    response = requests.get(
+    
+    weather_data = get_cached_json(
         "https://api.open-meteo.com/v1/forecast",
-        params={
+        {
             "latitude": latitude,
             "longitude": longitude,
             "current": (
@@ -331,11 +389,12 @@ def get_weather(state: str, crop: str = "Rice"):
             ),
             "timezone": "auto"
         },
-        timeout=15
+        ("current", round(latitude, 3), round(longitude, 3)),
+        WEATHER_CACHE_SECONDS
     )
 
-    response.raise_for_status()
-    current = response.json().get("current", {})
+    current = weather_data.get("current", {})
+
 
     temperature = current.get("temperature_2m")
     humidity = current.get("relative_humidity_2m")
@@ -469,11 +528,15 @@ def get_forecast(state: str):
             "error": f"Location not found in India: {state}"
         }
 
-    response = requests.get(
+    
+    latitude = location["latitude"]
+    longitude = location["longitude"]
+
+    forecast_data = get_cached_json(
         "https://api.open-meteo.com/v1/forecast",
-        params={
-            "latitude": location["latitude"],
-            "longitude": location["longitude"],
+        {
+            "latitude": latitude,
+            "longitude": longitude,
             "daily": (
                 "weather_code,temperature_2m_max,"
                 "temperature_2m_min,precipitation_probability_max,"
@@ -482,11 +545,12 @@ def get_forecast(state: str):
             "forecast_days": 7,
             "timezone": "auto"
         },
-        timeout=15
+        ("forecast", round(latitude, 3), round(longitude, 3)),
+        WEATHER_CACHE_SECONDS
     )
 
-    response.raise_for_status()
-    daily = response.json().get("daily", {})
+    daily = forecast_data.get("daily", {})
+
 
     forecasts = []
 
