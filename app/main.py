@@ -12,8 +12,8 @@ from threading import Lock
 
 # Load configuration from the project-root .env file.
 load_dotenv()
-SUPABASE_URL = os.getenv("https://vjxxvckqstqqxiussolq.supabase.co", "").rstrip("/")
-SUPABASE_PUBLISHABLE_KEY = os.getenv("sb_publishable_vD90f8-sckPUk9LZQ-6RBA_fIfzlRlH", "")
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
+SUPABASE_PUBLISHABLE_KEY = os.getenv("SUPABASE_PUBLISHABLE_KEY", "")
 
 from fastapi.middleware.cors import CORSMiddleware
 app = FastAPI(title="CropAI API")
