@@ -49,6 +49,11 @@
           <label for="authPassword">Password</label>
           <input id="authPassword" type="password" autocomplete="current-password" minlength="6" placeholder="At least 6 characters" required>
         </div>
+        
+        <p class="forgot-password">
+          <a href="#" id="forgotPasswordBtn">Forgot password?</a>
+        </p>
+
         <button id="authSubmit" class="primary-button" type="submit">Sign in</button>
       </form>
 
@@ -188,13 +193,17 @@
     </section>
 
     <section class="section">
-      <div class="section-heading">
-        <h2>Seven-Day Weather Forecast</h2>
-        <p>Check upcoming temperatures and rainfall estimates before planning farm activities.</p>
+      <div class="section-heading">        
+<h2>3-Day Weather Forecast</h2>
+<p>Check upcoming temperatures and rainfall estimates before planning farm activities.</p>
+
+<div id="forecast">
+    <p>Loading 3-day forecast...</p>
+</div>
       </div>
       <article class="card">
         <div id="forecast" aria-live="polite">
-          <div class="notice">Select a state above to load the seven-day forecast.</div>
+          <div class="notice">Select a state above to load the three-day forecast.</div>
         </div>
       </article>
     </section>
@@ -611,6 +620,34 @@
     const nameField = document.getElementById("nameField");
     const fullName = document.getElementById("fullName");
     const authPassword = document.getElementById("authPassword");
+    
+const forgotPasswordBtn = document.getElementById("forgotPasswordBtn");
+
+forgotPasswordBtn?.addEventListener("click", async (event) => {
+  event.preventDefault();
+
+  const email = document.getElementById("authEmail").value.trim();
+
+  if (!email) {
+    showAuthMessage("Please enter your email address first.", "error");
+    document.getElementById("authEmail").focus();
+    return;
+  }
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin
+  });
+
+  if (error) {
+    showAuthMessage("Unable to send reset email. Please try again.", "error");
+  } else {
+    showAuthMessage(
+      "If this email is registered, a password reset link will be sent. Check your inbox.",
+      "success"
+    );
+  }
+});
+
     let authMode = "login";
 
     function showAuthMessage(message, type = "") {
