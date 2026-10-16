@@ -639,8 +639,9 @@ forgotPasswordBtn?.addEventListener("click", async (event) => {
   });
 
   if (error) {
-    showAuthMessage("Unable to send reset email. Please try again.", "error");
-  } else {
+  console.error("Password reset error:", error);
+  showAuthMessage(error.message, "error");
+} else {
     showAuthMessage(
       "If this email is registered, a password reset link will be sent. Check your inbox.",
       "success"
