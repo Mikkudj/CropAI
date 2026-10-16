@@ -40,18 +40,19 @@ WEATHER_CACHE_SECONDS = 1800  # 30 minutes
 GEOCODING_CACHE_SECONDS = 86400  # 24 hours
 
 
-def get_cached_json(url, params, cache_key, ttl):
+
+def get_cached_json(url, params, cache_key, ttl, allow_unavailable=False):
     now = time.time()
 
     with _api_cache_lock:
         cached = _api_cache.get(cache_key)
 
-    # Return cached data if it is still fresh
     if cached and now - cached["time"] < ttl:
         return cached["data"]
 
     try:
         response = requests.get(url, params=params, timeout=15)
+
         if response.status_code == 429:
             print("Open-Meteo 429 response:", response.text[:1000])
 
@@ -70,7 +71,11 @@ def get_cached_json(url, params, cache_key, ttl):
         status = exc.response.status_code if exc.response is not None else None
 
         if status == 429 and cached:
+            print("Using stale cached data for:", cache_key)
             return cached["data"]
+
+        if status == 429 and allow_unavailable:
+            return None
 
         if status == 429:
             raise HTTPException(
@@ -85,7 +90,11 @@ def get_cached_json(url, params, cache_key, ttl):
 
     except requests.exceptions.RequestException as exc:
         if cached:
+            print("Using stale cached data for:", cache_key)
             return cached["data"]
+
+        if allow_unavailable:
+            return None
 
         raise HTTPException(
             status_code=503,
@@ -367,20 +376,17 @@ def find_indian_location(state: str):
 # CURRENT WEATHER
 # ======================================
 
+
 @app.get("/weather")
 def get_weather(state: str, crop: str = "Rice"):
-
     location = find_indian_location(state)
 
     if not location:
-        return {
-            "error": f"Location not found in India: {state}"
-        }
+        return {"error": f"Location not found in India: {state}"}
 
     latitude = location["latitude"]
     longitude = location["longitude"]
 
-    
     weather_data = get_cached_json(
         "https://api.open-meteo.com/v1/forecast",
         {
@@ -393,11 +399,29 @@ def get_weather(state: str, crop: str = "Rice"):
             "timezone": "auto"
         },
         ("current", round(latitude, 3), round(longitude, 3)),
-        WEATHER_CACHE_SECONDS
+        WEATHER_CACHE_SECONDS,
+        allow_unavailable=True
     )
 
-    current = weather_data.get("current", {})
+    # Safe fallback when live weather is unavailable
+    if weather_data is None:
+        return {
+            "location": location["name"],
+            "latitude": latitude,
+            "longitude": longitude,
+            "crop": crop,
+            "temperature": None,
+            "humidity": None,
+            "precipitation": None,
+            "wind_speed": None,
+            "weather_advice": [
+                "Live weather is temporarily unavailable.",
+                "Check a trusted local weather source before making irrigation or crop-protection decisions."
+            ],
+            "weather_status": "unavailable"
+        }
 
+    current = weather_data.get("current", {})
 
     temperature = current.get("temperature_2m")
     humidity = current.get("relative_humidity_2m")
@@ -468,7 +492,8 @@ def get_weather(state: str, crop: str = "Rice"):
         "humidity": humidity,
         "precipitation": precipitation,
         "wind_speed": wind_speed,
-        "weather_advice": advice
+        "weather_advice": advice,
+        "weather_status": "live"
     }
 
 
@@ -521,9 +546,9 @@ def crop_statistics():
 # SEVEN-DAY FORECAST
 # ======================================
 
+
 @app.get("/forecast")
 def get_forecast(state: str):
-
     location = find_indian_location(state)
 
     if not location:
@@ -531,7 +556,6 @@ def get_forecast(state: str):
             "error": f"Location not found in India: {state}"
         }
 
-    
     latitude = location["latitude"]
     longitude = location["longitude"]
 
@@ -549,12 +573,23 @@ def get_forecast(state: str):
             "timezone": "auto"
         },
         ("forecast", round(latitude, 3), round(longitude, 3)),
-        WEATHER_CACHE_SECONDS
+        WEATHER_CACHE_SECONDS,
+        allow_unavailable=True
     )
 
+    if forecast_data is None:
+        return {
+            "location": location["name"],
+            "state": state,
+            "forecast": [],
+            "forecast_status": "unavailable",
+            "message": (
+                "Live forecast is temporarily unavailable. "
+                "Please check again later."
+            )
+        }
+
     daily = forecast_data.get("daily", {})
-
-
     forecasts = []
 
     for i, date in enumerate(daily.get("time", [])):
@@ -570,7 +605,8 @@ def get_forecast(state: str):
     return {
         "location": location["name"],
         "state": state,
-        "forecast": forecasts
+        "forecast": forecasts,
+        "forecast_status": "live"
     }
 
 @app.get("/model-performance")
