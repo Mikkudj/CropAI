@@ -53,7 +53,7 @@ def get_cached_json(url, params, cache_key, ttl):
     try:
         response = requests.get(url, params=params, timeout=15)
         if response.status_code == 429:
-        print("Open-Meteo 429 response:", response.text[:1000])
+            print("Open-Meteo 429 response:", response.text[:1000])
 
         response.raise_for_status()
         data = response.json()
