@@ -386,25 +386,95 @@ def get_weather(state: str, crop: str = "Rice"):
 
     latitude = location["latitude"]
     longitude = location["longitude"]
+    api_key = os.getenv("WEATHER_API_KEY")
 
-    weather_data = get_cached_json(
-        "https://api.open-meteo.com/v1/forecast",
-        {
+    if not api_key:
+        return {
+            "location": location["name"],
             "latitude": latitude,
             "longitude": longitude,
-            "current": (
-                "temperature_2m,relative_humidity_2m,"
-                "precipitation,wind_speed_10m"
-            ),
-            "timezone": "auto"
-        },
-        ("current", round(latitude, 3), round(longitude, 3)),
-        WEATHER_CACHE_SECONDS,
-        allow_unavailable=True
-    )
+            "crop": crop,
+            "temperature": None,
+            "humidity": None,
+            "precipitation": None,
+            "wind_speed": None,
+            "weather_advice": ["Weather API key is not configured."],
+            "weather_status": "unavailable"
+        }
 
-    # Safe fallback when live weather is unavailable
-    if weather_data is None:
+    try:
+        response = requests.get(
+            "https://api.weatherapi.com/v1/current.json",
+            params={
+                "key": api_key,
+                "q": f"{latitude},{longitude}"
+            },
+            timeout=10
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        if "error" in data:
+            raise ValueError(data["error"].get("message", "Weather API error"))
+
+        current = data["current"]
+        temperature = current.get("temp_c")
+        humidity = current.get("humidity")
+        precipitation = current.get("precip_mm")
+        wind_speed = current.get("wind_kph")
+
+        advice = []
+
+        if humidity is not None and humidity >= 80:
+            advice.append("High humidity: monitor crops for fungal diseases.")
+
+        if precipitation is not None and precipitation == 0:
+            advice.append(
+                "No current precipitation: check soil moisture before irrigating."
+            )
+
+        if precipitation is not None and precipitation > 10:
+            advice.append(
+                "Heavy current precipitation: check drainage and waterlogging."
+            )
+
+        if wind_speed is not None and wind_speed >= 30:
+            advice.append(
+                "Strong winds: check vulnerable crops and provide support where appropriate."
+            )
+
+        crop_advice = {
+            "rice": "Monitor field water levels and maintain drainage according to the rice growth stage.",
+            "wheat": "Check soil moisture, especially during flowering and grain filling.",
+            "maize": "Monitor soil moisture and inspect plants for pests and leaf damage.",
+            "sugarcane": "Monitor soil moisture and inspect stalks and leaves for pests.",
+            "banana": "Ensure good drainage and support plants if strong winds threaten them.",
+            "tomato": "Avoid prolonged leaf wetness and monitor for fungal disease symptoms.",
+            "potato": "Avoid waterlogged soil and monitor foliage for disease symptoms."
+        }
+
+        advice.append(
+            f"{crop}: " + crop_advice.get(
+                crop.strip().lower(),
+                "Monitor soil moisture, crop health, and local pest or disease symptoms."
+            )
+        )
+
+        return {
+            "location": location["name"],
+            "latitude": latitude,
+            "longitude": longitude,
+            "crop": crop,
+            "temperature": temperature,
+            "humidity": humidity,
+            "precipitation": precipitation,
+            "wind_speed": wind_speed,
+            "weather_advice": advice,
+            "weather_status": "live"
+        }
+
+    except (requests.RequestException, ValueError, KeyError) as exc:
+        print(f"WeatherAPI current weather error: {exc}")
         return {
             "location": location["name"],
             "latitude": latitude,
@@ -420,81 +490,6 @@ def get_weather(state: str, crop: str = "Rice"):
             ],
             "weather_status": "unavailable"
         }
-
-    current = weather_data.get("current", {})
-
-    temperature = current.get("temperature_2m")
-    humidity = current.get("relative_humidity_2m")
-    precipitation = current.get("precipitation")
-    wind_speed = current.get("wind_speed_10m")
-
-    advice = []
-
-    if humidity is not None and humidity >= 80:
-        advice.append(
-            "High humidity: monitor crops for fungal diseases."
-        )
-
-    if precipitation is not None and precipitation == 0:
-        advice.append(
-            "No current precipitation: check soil moisture before irrigating."
-        )
-
-    if precipitation is not None and precipitation > 10:
-        advice.append(
-            "Heavy current precipitation: check drainage and waterlogging."
-        )
-
-    if wind_speed is not None and wind_speed >= 30:
-        advice.append(
-            "Strong winds: check vulnerable crops and provide support where appropriate."
-        )
-
-    crop_advice = {
-        "rice": (
-            "Monitor field water levels and maintain drainage "
-            "according to the rice growth stage."
-        ),
-        "wheat": (
-            "Check soil moisture, especially during flowering "
-            "and grain filling."
-        ),
-        "maize": (
-            "Monitor soil moisture and inspect plants for pests and leaf damage."
-        ),
-        "sugarcane": (
-            "Monitor soil moisture and inspect stalks and leaves for pests."
-        ),
-        "banana": (
-            "Ensure good drainage and support plants if strong winds threaten them."
-        ),
-        "tomato": (
-            "Avoid prolonged leaf wetness and monitor for fungal disease symptoms."
-        ),
-        "potato": (
-            "Avoid waterlogged soil and monitor foliage for disease symptoms."
-        )
-    }
-
-    advice.append(
-        f"{crop}: " + crop_advice.get(
-            crop.strip().lower(),
-            "Monitor soil moisture, crop health, and local pest or disease symptoms."
-        )
-    )
-
-    return {
-        "location": location["name"],
-        "latitude": latitude,
-        "longitude": longitude,
-        "crop": crop,
-        "temperature": temperature,
-        "humidity": humidity,
-        "precipitation": precipitation,
-        "wind_speed": wind_speed,
-        "weather_advice": advice,
-        "weather_status": "live"
-    }
 
 
 # ======================================
@@ -549,65 +544,74 @@ def crop_statistics():
 
 @app.get("/forecast")
 def get_forecast(state: str):
+
     location = find_indian_location(state)
 
     if not location:
-        return {
-            "error": f"Location not found in India: {state}"
-        }
+        return {"error": f"Location not found in India: {state}"}
 
     latitude = location["latitude"]
     longitude = location["longitude"]
+    api_key = os.getenv("WEATHER_API_KEY")
 
-    forecast_data = get_cached_json(
-        "https://api.open-meteo.com/v1/forecast",
-        {
-            "latitude": latitude,
-            "longitude": longitude,
-            "daily": (
-                "weather_code,temperature_2m_max,"
-                "temperature_2m_min,precipitation_probability_max,"
-                "precipitation_sum"
-            ),
-            "forecast_days": 7,
-            "timezone": "auto"
-        },
-        ("forecast", round(latitude, 3), round(longitude, 3)),
-        WEATHER_CACHE_SECONDS,
-        allow_unavailable=True
-    )
-
-    if forecast_data is None:
+    if not api_key:
         return {
             "location": location["name"],
             "state": state,
             "forecast": [],
             "forecast_status": "unavailable",
-            "message": (
-                "Live forecast is temporarily unavailable. "
-                "Please check again later."
-            )
+            "message": "Weather API key is not configured."
         }
 
-    daily = forecast_data.get("daily", {})
-    forecasts = []
+    try:
+        response = requests.get(
+            "https://api.weatherapi.com/v1/forecast.json",
+            params={
+                "key": api_key,
+                "q": f"{latitude},{longitude}",
+                "days": 3,
+                "aqi": "no",
+                "alerts": "no"
+            },
+            timeout=10
+        )
+        response.raise_for_status()
+        data = response.json()
 
-    for i, date in enumerate(daily.get("time", [])):
-        forecasts.append({
-            "date": date,
-            "weather_code": daily["weather_code"][i],
-            "max_temperature": daily["temperature_2m_max"][i],
-            "min_temperature": daily["temperature_2m_min"][i],
-            "rain_probability": daily["precipitation_probability_max"][i],
-            "precipitation_mm": daily["precipitation_sum"][i]
-        })
+        if "error" in data:
+            raise ValueError(data["error"].get("message", "Weather API error"))
 
-    return {
-        "location": location["name"],
-        "state": state,
-        "forecast": forecasts,
-        "forecast_status": "live"
-    }
+        forecasts = []
+
+        for item in data.get("forecast", {}).get("forecastday", []):
+            day = item.get("day", {})
+            condition = day.get("condition", {})
+
+            forecasts.append({
+                "date": item.get("date"),
+                "weather_code": condition.get("code"),
+                "max_temperature": day.get("maxtemp_c"),
+                "min_temperature": day.get("mintemp_c"),
+                "rain_probability": day.get("daily_chance_of_rain"),
+                "precipitation_mm": day.get("totalprecip_mm")
+            })
+
+        return {
+            "location": location["name"],
+            "state": state,
+            "forecast": forecasts,
+            "forecast_status": "live"
+        }
+
+    except (requests.RequestException, ValueError, KeyError) as exc:
+        print(f"WeatherAPI forecast error: {exc}")
+        return {
+            "location": location["name"],
+            "state": state,
+            "forecast": [],
+            "forecast_status": "unavailable",
+            "message": "Live forecast is temporarily unavailable. Please check again later."
+        }
 
 @app.get("/model-performance")
 def get_model_performance():
