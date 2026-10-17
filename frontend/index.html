@@ -57,6 +57,35 @@
         <button id="authSubmit" class="primary-button" type="submit">Sign in</button>
       </form>
 
+<form id="resetPasswordForm" hidden>
+  <div class="field">
+    <label for="newPassword">New password</label>
+    <input
+      id="newPassword"
+      type="password"
+      minlength="6"
+      autocomplete="new-password"
+      placeholder="Enter new password"
+      required
+    >
+  </div>
+  <div class="field">
+    <label for="confirmPassword">Confirm new password</label>
+    <input
+      id="confirmPassword"
+      type="password"
+      minlength="6"
+      autocomplete="new-password"
+      placeholder="Enter password again"
+      required
+    >
+  </div>
+  <button type="submit" id="saveNewPasswordButton" class="primary-button">
+    Update password
+  </button>
+</form>
+
+
       <p id="authMessage" class="auth-message" role="status" aria-live="polite"></p>
       <p class="auth-switch"><span id="authSwitchText">Don't have an account?</span>
         <button type="button" id="authSwitch" class="text-button">Create account</button>
@@ -621,6 +650,7 @@
     const fullName = document.getElementById("fullName");
     const authPassword = document.getElementById("authPassword");
     
+
 const forgotPasswordBtn = document.getElementById("forgotPasswordBtn");
 
 forgotPasswordBtn?.addEventListener("click", async (event) => {
@@ -629,25 +659,27 @@ forgotPasswordBtn?.addEventListener("click", async (event) => {
   const email = document.getElementById("authEmail").value.trim();
 
   if (!email) {
-    showAuthMessage("Please enter your email address first.", "error");
+    showAuthMessage("Enter your email address first.", "error");
     document.getElementById("authEmail").focus();
     return;
   }
 
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: window.location.origin
-  });
+  try {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin
+    });
 
-  if (error) {
-  console.error("Password reset error:", error);
-  showAuthMessage(error.message, "error");
-} else {
+    if (error) throw error;
+
     showAuthMessage(
-      "If this email is registered, a password reset link will be sent. Check your inbox.",
+      "Check your email for the password reset link.",
       "success"
     );
+  } catch (error) {
+    showAuthMessage(error.message, "error");
   }
 });
+
 
     let authMode = "login";
 
@@ -655,6 +687,62 @@ forgotPasswordBtn?.addEventListener("click", async (event) => {
       authMessage.textContent = message;
       authMessage.className = "auth-message" + (type ? " " + type : "");
     }
+    
+const resetPasswordForm = document.getElementById("resetPasswordForm");
+
+function showResetPassword() {
+  dashboardApp.hidden = true;
+  authScreen.hidden = false;
+  authForm.hidden = true;
+  resetPasswordForm.hidden = false;
+
+  authTitle.textContent = "Set a New Password";
+  authSubtitle.textContent = "Enter your new password below.";
+  showAuthMessage("");
+}
+
+resetPasswordForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const password = document.getElementById("newPassword").value;
+  const confirmPassword = document.getElementById("confirmPassword").value;
+  const saveButton = document.getElementById("saveNewPasswordButton");
+
+  if (password.length < 6) {
+    showAuthMessage("Password must be at least 6 characters.", "error");
+    return;
+  }
+
+  if (password !== confirmPassword) {
+    showAuthMessage("Passwords do not match.", "error");
+    return;
+  }
+
+  saveButton.disabled = true;
+
+  try {
+    const { error } = await supabase.auth.updateUser({ password });
+
+    if (error) throw error;
+
+    await supabase.auth.signOut();
+
+    resetPasswordForm.reset();
+    resetPasswordForm.hidden = true;
+    authForm.hidden = false;
+    setAuthMode("login");
+
+    showAuthMessage(
+      "Password updated successfully. Please sign in.",
+      "success"
+    );
+  } catch (error) {
+    showAuthMessage(error.message, "error");
+  } finally {
+    saveButton.disabled = false;
+  }
+});
+
 
     function setAuthMode(mode) {
       authMode = mode;
@@ -741,14 +829,36 @@ forgotPasswordBtn?.addEventListener("click", async (event) => {
       showAuthMessage("You have been logged out.", "success");
     });
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session) showDashboard();
-    else showLogin();
+    
+let recoveryMode = false;
 
-    supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) showDashboard();
-      else showLogin();
-    });
+supabase.auth.onAuthStateChange((event, session) => {
+  if (event === "PASSWORD_RECOVERY") {
+    recoveryMode = true;
+    showResetPassword();
+    return;
+  }
+
+  if (recoveryMode) return;
+
+  if (session) showDashboard();
+  else showLogin();
+});
+
+const hashParams = new URLSearchParams(
+  window.location.hash.substring(1)
+);
+
+if (hashParams.get("type") === "recovery") {
+  recoveryMode = true;
+  showResetPassword();
+} else {
+  const { data: { session } } = await supabase.auth.getSession();
+
+  if (session) showDashboard();
+  else showLogin();
+}
+
   </script>
 
 </body>
