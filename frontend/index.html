@@ -797,14 +797,17 @@ resetPasswordForm.addEventListener("submit", async (event) => {
           });
           if (error) throw error;
 
-          if (data.session) {
-            showDashboard();
-            showAuthMessage("");
-          } else {
-            showAuthMessage("Account created. Check your email for a confirmation link, then sign in.", "success");
-            setAuthMode("login");
-            showAuthMessage("Account created. Check your email for a confirmation link, then sign in.", "success");
-          }
+          
+if (data.session) {
+  showDashboard();
+} else {
+  setAuthMode("login");
+  showAuthMessage(
+    "Account created successfully! Please check your email and click the confirmation link before signing in.",
+    "success"
+  );
+}
+
         } else {
           const { error } = await supabase.auth.signInWithPassword({ email, password });
           if (error) throw error;
