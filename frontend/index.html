@@ -791,10 +791,13 @@ resetPasswordForm.addEventListener("submit", async (event) => {
       try {
         if (authMode === "signup") {
           const { data, error } = await supabase.auth.signUp({
-            email,
-            password,
-            options: { data: { full_name: fullName.value.trim() } }
-          });
+  email,
+  password,
+  options: {
+    data: { full_name: fullName.value.trim() },
+    emailRedirectTo: window.location.origin
+  }
+});
           if (error) throw error;
 
           
