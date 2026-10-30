@@ -6,7 +6,7 @@ CropAI is an AI-powered web application that predicts crop yield using historica
 
 - Crop yield prediction using a trained machine learning model
 - Current weather information
-- 7-day weather forecast
+- 3-day weather forecast
 - General farming recommendations
 - Supabase authentication
 - User-specific prediction history
